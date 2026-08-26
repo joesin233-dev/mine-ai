@@ -1,0 +1,11 @@
+node_modules/
+.next/
+data/uploads/*
+data/processed/*
+data/findings/*
+data/evidence/*
+data/economic/*
+data/reports/*
+!data/**/.gitkeep
+.DS_Store
+*.log
