@@ -1,10 +1,13 @@
 // MINE AI V0.1 — Upload route
-// Stage 1 scope: accept a CSV/XLSX file, save it untouched to /data/uploads,
-// and record a minimal placeholder Dataset entry. Parsing/profiling is Stage 2/3.
+// Stage 2 update: the file is now actually parsed and validated on upload.
+// Full statistical profiling (column types, stats, quality flags) is still
+// Stage 3 — this stage only gets us from "raw file" to "validated rows."
 
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { saveRawUpload, createStore } from "@/storage/fileStore";
+import { parseFile } from "@/core/data-engine/parser";
+import { validateParseResult } from "@/core/data-engine/validator";
 import type { Dataset } from "@/models/types";
 
 const ALLOWED_EXTENSIONS = ["csv", "xlsx", "xls"];
@@ -34,19 +37,50 @@ export async function POST(req: NextRequest) {
 
   await saveRawUpload(datasetId, buffer, extension);
 
-  // Stage 1 placeholder record — row/column analysis is NOT done here yet.
-  // This is intentionally minimal and must not be presented as a completed
-  // "understanding" of the data (that's Stage 3).
-  const placeholder: Dataset = {
+  let parseResult;
+  try {
+    parseResult = parseFile(buffer, extension);
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: `Could not read the file: ${err.message}` },
+      { status: 400 }
+    );
+  }
+
+  const validation = validateParseResult(parseResult);
+  if (!validation.valid) {
+    return NextResponse.json(
+      {
+        error: "The file has structural problems and cannot be used.",
+        issues: validation.issues,
+      },
+      { status: 400 }
+    );
+  }
+
+  // Stage 2: we now know the real row/column count and header names.
+  // Full column typing and statistics (Stage 3) still show empty columns here.
+  const dataset: Dataset = {
     id: datasetId,
     filename: file.name,
     uploadedAt: new Date().toISOString(),
-    rowCount: 0,
-    columns: [],
+    rowCount: parseResult.rowCount,
+    columns: parseResult.headers.map((name) => ({
+      name,
+      type: "unknown",
+      missingCount: 0,
+      duplicateFlag: false,
+      qualityIssues: [],
+    })),
   };
 
   const processedStore = createStore<Dataset>("processed");
-  await processedStore.save(datasetId, placeholder);
+  await processedStore.save(datasetId, dataset);
 
-  return NextResponse.json({ datasetId, filename: file.name });
+  return NextResponse.json({
+    datasetId,
+    filename: file.name,
+    rowCount: dataset.rowCount,
+    headers: parseResult.headers,
+  });
 }
