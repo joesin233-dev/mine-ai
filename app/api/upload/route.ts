@@ -1,13 +1,14 @@
 // MINE AI V0.1 — Upload route
-// Stage 2 update: the file is now actually parsed and validated on upload.
-// Full statistical profiling (column types, stats, quality flags) is still
-// Stage 3 — this stage only gets us from "raw file" to "validated rows."
+// Stage 3 update: the uploaded file is now fully profiled — real column
+// types, statistics, and quality flags — instead of the Stage 2 placeholder
+// that only recorded column names with type "unknown".
 
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { saveRawUpload, createStore } from "@/storage/fileStore";
 import { parseFile } from "@/core/data-engine/parser";
 import { validateParseResult } from "@/core/data-engine/validator";
+import { profileDataset } from "@/core/data-engine/profiler";
 import type { Dataset } from "@/models/types";
 
 const ALLOWED_EXTENSIONS = ["csv", "xlsx", "xls"];
@@ -58,21 +59,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Stage 2: we now know the real row/column count and header names.
-  // Full column typing and statistics (Stage 3) still show empty columns here.
-  const dataset: Dataset = {
-    id: datasetId,
-    filename: file.name,
-    uploadedAt: new Date().toISOString(),
-    rowCount: parseResult.rowCount,
-    columns: parseResult.headers.map((name) => ({
-      name,
-      type: "unknown",
-      missingCount: 0,
-      duplicateFlag: false,
-      qualityIssues: [],
-    })),
-  };
+  // Stage 3: full profiling — real column types, stats, and quality flags.
+  const dataset: Dataset = profileDataset(datasetId, file.name, parseResult);
 
   const processedStore = createStore<Dataset>("processed");
   await processedStore.save(datasetId, dataset);
@@ -81,6 +69,6 @@ export async function POST(req: NextRequest) {
     datasetId,
     filename: file.name,
     rowCount: dataset.rowCount,
-    headers: parseResult.headers,
+    columns: dataset.columns,
   });
 }
