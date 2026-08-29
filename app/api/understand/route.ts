@@ -1,4 +1,7 @@
-// Stage 1 stub — profiling logic arrives in Stage 3.
+// MINE AI V0.1 — Understand route
+// Stage 3 update: returns the full real Dataset profile (column types,
+// stats, quality flags) that was computed and saved during upload.
+
 import { NextRequest, NextResponse } from "next/server";
 import { createStore } from "@/storage/fileStore";
 import type { Dataset } from "@/models/types";
@@ -13,7 +16,5 @@ export async function GET(req: NextRequest) {
   if (!dataset) {
     return NextResponse.json({ error: "Dataset not found" }, { status: 404 });
   }
-  // Stage 1: returns the placeholder record only. Real column profiling (Stage 3)
-  // is not implemented yet — this route must not claim it is.
-  return NextResponse.json({ ...dataset, note: "Profiling not yet implemented (Stage 3)." });
+  return NextResponse.json(dataset);
 }
