@@ -1,68 +1,53 @@
-// Stage 4 test — verifies the discovery engine detects the deliberate
-// ~14% production drop and downtime increase baked into the fixture CSV.
+// MINE AI V0.1 — Discover route
+// Stage 4: runs the discovery engine against an already-uploaded dataset.
+// Re-parses the raw file (kept for audit trail since Stage 1) rather than
+// storing full row data long-term, per the locked storage architecture.
 
-import { describe, it, expect } from "vitest";
-import { promises as fs } from "fs";
-import path from "path";
-import { parseCsv } from "../core/data-engine/parser";
-import { profileDataset } from "../core/data-engine/profiler";
-import { runDiscovery } from "../core/discovery-engine/discover";
+import { NextRequest, NextResponse } from "next/server";
+import { createStore, loadRawUpload } from "@/storage/fileStore";
+import { parseFile } from "@/core/data-engine/parser";
+import { runDiscovery } from "@/core/discovery-engine/discover";
+import type { Dataset, Finding } from "@/models/types";
 
-describe("discovery engine (Stage 4)", () => {
-  it("detects a change in production_tons", async () => {
-    const filePath = path.join(process.cwd(), "tests/fixtures/sample-production.csv");
-    const buffer = await fs.readFile(filePath);
-    const parsed = parseCsv(buffer);
-    const dataset = profileDataset("test-id", "sample-production.csv", parsed);
+export async function POST(req: NextRequest) {
+  const body = await req.json();
+  const { datasetId } = body;
 
-    const findings = runDiscovery({
-      datasetId: "test-id",
-      dataset,
-      rows: parsed.rows,
-    });
+  if (!datasetId) {
+    return NextResponse.json({ error: "datasetId is required" }, { status: 400 });
+  }
 
-    const productionChange = findings.find(
-      (f) => f.type === "change" && f.variablesInvolved.includes("production_tons")
+  const processedStore = createStore<Dataset>("processed");
+  const dataset = await processedStore.load(datasetId);
+
+  if (!dataset) {
+    return NextResponse.json({ error: "Dataset not found" }, { status: 404 });
+  }
+
+  const extension = dataset.filename.split(".").pop()?.toLowerCase() ?? "csv";
+
+  let buffer;
+  try {
+    buffer = await loadRawUpload(datasetId, extension);
+  } catch {
+    return NextResponse.json(
+      { error: "The original uploaded file could not be found." },
+      { status: 500 }
     );
-    expect(productionChange).toBeDefined();
-    expect(productionChange!.magnitude).toBeGreaterThan(8);
+  }
+
+  const parseResult = parseFile(buffer, extension);
+
+  const findings = runDiscovery({
+    datasetId,
+    dataset,
+    rows: parseResult.rows,
   });
 
-  it("detects a relationship between downtime_hours and production_tons", async () => {
-    const filePath = path.join(process.cwd(), "tests/fixtures/sample-production.csv");
-    const buffer = await fs.readFile(filePath);
-    const parsed = parseCsv(buffer);
-    const dataset = profileDataset("test-id", "sample-production.csv", parsed);
+  const findingsStore = createStore<Finding>("findings");
+  for (const finding of findings) {
+    await findingsStore.save(finding.id, finding);
+  }
 
-    const findings = runDiscovery({
-      datasetId: "test-id",
-      dataset,
-      rows: parsed.rows,
-    });
-
-    const relationship = findings.find(
-      (f) =>
-        f.type === "relationship" &&
-        f.variablesInvolved.includes("downtime_hours") &&
-        f.variablesInvolved.includes("production_tons")
-    );
-    expect(relationship).toBeDefined();
-  });
-
-  it("ranks findings from highest to lowest rankScore", async () => {
-    const filePath = path.join(process.cwd(), "tests/fixtures/sample-production.csv");
-    const buffer = await fs.readFile(filePath);
-    const parsed = parseCsv(buffer);
-    const dataset = profileDataset("test-id", "sample-production.csv", parsed);
-
-    const findings = runDiscovery({
-      datasetId: "test-id",
-      dataset,
-      rows: parsed.rows,
-    });
-
-    for (let i = 0; i < findings.length - 1; i++) {
-      expect(findings[i].rankScore).toBeGreaterThanOrEqual(findings[i + 1].rankScore);
-    }
-  });
-});
+  return NextResponse.json({ findings });
+}
