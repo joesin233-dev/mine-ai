@@ -1,6 +1,9 @@
+// Stage 9 update — Upload page now links forward to the Analyze screen
+// after a successful upload, connecting the full user flow end to end.
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 
 export default function UploadPage() {
   const [status, setStatus] = useState<string>("");
@@ -27,7 +30,7 @@ export default function UploadPage() {
     }
 
     setDatasetId(json.datasetId);
-    setStatus(`Uploaded "${json.filename}" successfully.`);
+    setStatus(`Uploaded "${json.filename}" successfully — ${json.rowCount} rows.`);
   }
 
   return (
@@ -37,7 +40,18 @@ export default function UploadPage() {
       <input type="file" accept=".csv,.xlsx,.xls" onChange={handleUpload} />
       {status && <p style={{ marginTop: 16 }}>{status}</p>}
       {datasetId && (
-        <p style={{ fontSize: 12, color: "#666" }}>Dataset ID: {datasetId}</p>
+        <div style={{ marginTop: 16 }}>
+          <Link href={`/understand/${datasetId}`}>
+            <button style={{ padding: "12px 20px", fontSize: 16, borderRadius: 8, marginRight: 8 }}>
+              View Data Understanding →
+            </button>
+          </Link>
+          <Link href={`/analyze/${datasetId}`}>
+            <button style={{ padding: "12px 20px", fontSize: 16, borderRadius: 8, marginTop: 8 }}>
+              Discover / Investigate →
+            </button>
+          </Link>
+        </div>
       )}
     </main>
   );
