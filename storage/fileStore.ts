@@ -1,12 +1,9 @@
 // MINE AI V0.1 — Storage layer
-// This is the ONLY module in the entire system allowed to read/write disk.
-// Every engine and API route goes through this. When V0.1 later moves to a
-// real database, this file is the only one that needs to change.
+// This is the ONLY module in the entire system allowed to touch storage.
+// Every engine and API route goes through this. Uses Vercel Blob instead of
+// local disk, since serverless functions can't write to the project filesystem.
 
-import { promises as fs } from "fs";
-import path from "path";
-
-const DATA_ROOT = path.join(process.cwd(), "data");
+import { put, head, list as blobList } from "@vercel/blob";
 
 export interface Store<T> {
   save(id: string, data: T): Promise<void>;
@@ -14,43 +11,44 @@ export interface Store<T> {
   list(): Promise<string[]>;
 }
 
-function folderFor(entity: string): string {
-  return path.join(DATA_ROOT, entity);
-}
-
-async function ensureFolder(folder: string): Promise<void> {
-  await fs.mkdir(folder, { recursive: true });
+function keyFor(entity: string, id: string): string {
+  return `${entity}/${id}.json`;
 }
 
 /**
- * Creates a typed JSON file store for one entity folder
+ * Creates a typed JSON store for one entity type
  * (e.g. "processed", "findings", "evidence", "economic", "reports").
  */
 export function createStore<T>(entity: string): Store<T> {
-  const folder = folderFor(entity);
-
   return {
     async save(id: string, data: T): Promise<void> {
-      await ensureFolder(folder);
-      const filePath = path.join(folder, `${id}.json`);
-      await fs.writeFile(filePath, JSON.stringify(data, null, 2), "utf-8");
+      const pathname = keyFor(entity, id);
+      await put(pathname, JSON.stringify(data, null, 2), {
+        access: "public",
+        addRandomSuffix: false,
+        contentType: "application/json",
+      });
     },
 
     async load(id: string): Promise<T | null> {
-      const filePath = path.join(folder, `${id}.json`);
+      const pathname = keyFor(entity, id);
       try {
-        const raw = await fs.readFile(filePath, "utf-8");
-        return JSON.parse(raw) as T;
+        const meta = await head(pathname);
+        const res = await fetch(meta.url);
+        if (!res.ok) return null;
+        return JSON.parse(await res.text()) as T;
       } catch (err: any) {
-        if (err.code === "ENOENT") return null;
+        if (err?.status === 404 || /not.?found/i.test(err?.message ?? "")) {
+          return null;
+        }
         throw err;
       }
     },
 
     async list(): Promise<string[]> {
-      await ensureFolder(folder);
-      const files = await fs.readdir(folder);
-      return files
+      const { blobs } = await blobList({ prefix: `${entity}/` });
+      return blobs
+        .map((b) => b.pathname.split("/").pop() ?? "")
         .filter((f) => f.endsWith(".json"))
         .map((f) => f.replace(/\.json$/, ""));
     },
@@ -59,25 +57,25 @@ export function createStore<T>(entity: string): Store<T> {
 
 /**
  * Saves a raw uploaded file (CSV/XLSX) untouched, for audit-trail purposes.
- * Raw uploads are never parsed in place here — parsing happens in the data engine.
  */
 export async function saveRawUpload(
   id: string,
   buffer: Buffer,
   extension: string
 ): Promise<string> {
-  const folder = folderFor("uploads");
-  await ensureFolder(folder);
-  const filePath = path.join(folder, `${id}.${extension}`);
-  await fs.writeFile(filePath, buffer);
-  return filePath;
+  const pathname = `uploads/${id}.${extension}`;
+  const { url } = await put(pathname, buffer, {
+    access: "public",
+    addRandomSuffix: false,
+  });
+  return url;
 }
 
 export async function loadRawUpload(
   id: string,
   extension: string
 ): Promise<Buffer> {
-  const folder = folderFor("uploads");
-  const filePath = path.join(folder, `${id}.${extension}`);
-  return fs.readFile(filePath);
+  const meta = await head(`uploads/${id}.${extension}`);
+  const res = await fetch(meta.url);
+  return Buffer.from(await res.arrayBuffer());
 }
