@@ -16,7 +16,9 @@ import type { ColumnProfile, ColumnType, NumericStats, Dataset } from "@/models/
  * Otherwise it's "categorical". Empty columns are "unknown".
  */
 function detectColumnType(values: (string | number | null)[]): ColumnType {
-  const nonNull = values.filter((v) => v !== null && v !== "");
+  const nonNull = values.filter(
+    (v): v is string | number => v !== null && v !== ""
+  );
   if (nonNull.length === 0) return "unknown";
 
   const allNumeric = nonNull.every(
