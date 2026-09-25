@@ -31,6 +31,9 @@ export function detectChanges(
   if (Math.abs(percentChange) < MIN_CHANGE_PERCENT) return [];
 
   const direction = percentChange < 0 ? "decreased" : "increased";
+  const plainLanguage = percentChange < 0
+    ? `In simple terms: ${columnName} dropped noticeably partway through the period.`
+    : `In simple terms: ${columnName} went up noticeably partway through the period.`;
 
   const finding: Finding = {
     id: `change-${columnName}-${datasetId}`,
@@ -43,7 +46,7 @@ export function detectChanges(
     },
     magnitude: Math.abs(percentChange),
     rankScore: 0, // assigned later by the ranker
-    description: `${columnName} ${direction} by ${Math.abs(percentChange).toFixed(1)}% between the first and second half of the available period.`,
+    description: `${columnName} ${direction} by ${Math.abs(percentChange).toFixed(1)}% between the first and second half of the available period. ${plainLanguage}`,
   };
 
   return [finding];
