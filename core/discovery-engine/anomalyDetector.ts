@@ -25,6 +25,7 @@ export function detectAnomalies(
   values.forEach((value, index) => {
     const zScore = (value - mean) / stdDev;
     if (Math.abs(zScore) >= Z_SCORE_THRESHOLD) {
+      const plainLanguage = `In simple terms: on this date, ${columnName} was way higher or lower than normal — worth checking what happened.`;
       findings.push({
         id: `anomaly-${columnName}-${index}-${datasetId}`,
         datasetId,
@@ -36,7 +37,7 @@ export function detectAnomalies(
         },
         magnitude: Math.abs(zScore),
         rankScore: 0,
-        description: `${columnName} had an unusual value of ${value} on ${rowDates[index] ?? "an unknown date"}, ${Math.abs(zScore).toFixed(1)} standard deviations from the average.`,
+        description: `${columnName} had an unusual value of ${value} on ${rowDates[index] ?? "an unknown date"}, ${Math.abs(zScore).toFixed(1)} standard deviations from the average. ${plainLanguage}`,
       });
     }
   });
