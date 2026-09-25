@@ -28,6 +28,9 @@ export function detectRelationships(
 
       if (Math.abs(r) >= MIN_CORRELATION) {
         const direction = r > 0 ? "move together" : "move in opposite directions";
+        const plainLanguage = r > 0
+          ? `In simple terms: when ${colA.name} goes up, ${colB.name} tends to go up too.`
+          : `In simple terms: when ${colA.name} goes up, ${colB.name} tends to go down.`;
         findings.push({
           id: `relationship-${colA.name}-${colB.name}-${datasetId}`,
           datasetId,
@@ -39,7 +42,7 @@ export function detectRelationships(
           },
           magnitude: Math.abs(r),
           rankScore: 0,
-          description: `${colA.name} and ${colB.name} ${direction} (correlation r=${r.toFixed(2)}). This is an observed association, not a confirmed cause-and-effect relationship.`,
+          description: `${colA.name} and ${colB.name} ${direction} (correlation r=${r.toFixed(2)}). This is an observed association, not a confirmed cause-and-effect relationship. ${plainLanguage}`,
         });
       }
     }
