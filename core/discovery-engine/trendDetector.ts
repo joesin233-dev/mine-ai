@@ -1,3 +1,13 @@
+// MINE AI V0.1 — Discovery Engine: Trend Detector
+// Stage 4: detects a consistent upward or downward direction in a numeric
+// column over time, using simple linear regression. A trend is only
+// reported if the slope is both non-trivial in size and consistent
+// (a reasonable fit), not just noise.
+
+import type { Finding } from "@/models/types";
+
+const MIN_R_SQUARED = 0.5; // how well a straight line fits the data
+
 export function detectTrends(
   datasetId: string,
   columnName: string,
@@ -38,15 +48,14 @@ export function detectTrends(
   const fittedStart = slope * xValues[0] + intercept;
   const fittedEnd = slope * xValues[n - 1] + intercept;
 
-  // Guard against a fragile near-zero baseline: use a stable reference
-  // (the average magnitude of the actual data) instead of dividing by
-  // whatever the fitted line happens to hit at the first point.
+  // Normalize the total predicted change against the average magnitude
+  // of the actual data — a stable reference — instead of dividing by
+  // the fitted line's own starting point, which can sit close to zero
+  // and blow the percentage up artificially.
   const scale = average(values.map((v) => Math.abs(v)));
   if (scale === 0) return [];
 
-  const baseline = Math.abs(fittedStart) > scale * 0.05 ? Math.abs(fittedStart) : scale;
-
-  const percentChange = ((fittedEnd - fittedStart) / baseline) * 100;
+  const percentChange = ((fittedEnd - fittedStart) / scale) * 100;
   const direction = slope < 0 ? "declining" : "rising";
 
   const finding: Finding = {
