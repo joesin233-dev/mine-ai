@@ -1,13 +1,3 @@
-// MINE AI V0.1 — Discovery Engine: Trend Detector
-// Stage 4: detects a consistent upward or downward direction in a numeric
-// column over time, using simple linear regression. A trend is only
-// reported if the slope is both non-trivial in size and consistent
-// (a reasonable fit), not just noise.
-
-import type { Finding } from "@/models/types";
-
-const MIN_R_SQUARED = 0.5; // how well a straight line fits the data
-
 export function detectTrends(
   datasetId: string,
   columnName: string,
@@ -34,7 +24,6 @@ export function detectTrends(
   const slope = numerator / denominator;
   const intercept = yMean - slope * xMean;
 
-  // R-squared: how well the fitted line explains the variation in values.
   let ssRes = 0;
   let ssTot = 0;
   for (let i = 0; i < n; i++) {
@@ -46,13 +35,18 @@ export function detectTrends(
 
   if (rSquared < MIN_R_SQUARED) return [];
 
-  // Express the trend as a percent change from the fitted start to end,
-  // which is more meaningful to a human than a raw slope value.
   const fittedStart = slope * xValues[0] + intercept;
   const fittedEnd = slope * xValues[n - 1] + intercept;
-  if (fittedStart === 0) return [];
 
-  const percentChange = ((fittedEnd - fittedStart) / Math.abs(fittedStart)) * 100;
+  // Guard against a fragile near-zero baseline: use a stable reference
+  // (the average magnitude of the actual data) instead of dividing by
+  // whatever the fitted line happens to hit at the first point.
+  const scale = average(values.map((v) => Math.abs(v)));
+  if (scale === 0) return [];
+
+  const baseline = Math.abs(fittedStart) > scale * 0.05 ? Math.abs(fittedStart) : scale;
+
+  const percentChange = ((fittedEnd - fittedStart) / baseline) * 100;
   const direction = slope < 0 ? "declining" : "rising";
 
   const finding: Finding = {
