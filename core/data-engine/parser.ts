@@ -14,6 +14,28 @@ export interface ParseResult {
   rowCount: number;
 }
 
+// Common currency symbols this should recognize and strip before parsing
+// numbers. Doesn't convert between currencies — just cleans formatting so
+// the underlying number can be read correctly regardless of currency.
+const CURRENCY_SYMBOLS = /[₦$£€₹K]/gi;
+
+/**
+ * If a raw cell value looks like a currency-formatted number (symbol,
+ * thousands separators), strip the formatting so it can be parsed as a
+ * plain number. Leaves genuinely non-numeric text untouched.
+ */
+function cleanCurrencyValue(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+
+  const trimmed = value.trim();
+  // Only attempt cleanup if it looks like "symbol + digits/commas/decimal"
+  const looksLikeCurrency = /^[₦$£€₹K]?\s?-?[\d,]+(\.\d+)?$/i.test(trimmed);
+  if (!looksLikeCurrency) return value;
+
+  const cleaned = trimmed.replace(CURRENCY_SYMBOLS, "").replace(/,/g, "").trim();
+  return cleaned;
+}
+
 /**
  * Parses a CSV file buffer into rows. Assumes the first row is the header.
  */
@@ -23,6 +45,7 @@ export function parseCsv(buffer: Buffer): ParseResult {
     header: true,
     skipEmptyLines: true,
     dynamicTyping: true,
+    transform: (value) => cleanCurrencyValue(value),
   });
 
   const headers = result.meta.fields ?? [];
@@ -44,7 +67,21 @@ export function parseXlsx(buffer: Buffer): ParseResult {
   const firstSheetName = workbook.SheetNames[0];
   const sheet = workbook.Sheets[firstSheetName];
 
-  const rows: RawRow[] = XLSX.utils.sheet_to_json(sheet, { defval: null });
+  const rawRows: RawRow[] = XLSX.utils.sheet_to_json(sheet, { defval: null });
+
+  // Clean currency-formatted values, then let dynamic parsing pick up numbers.
+  const rows: RawRow[] = rawRows.map((row) => {
+    const cleanedRow: RawRow = {};
+    for (const key of Object.keys(row)) {
+      const cleaned = cleanCurrencyValue(row[key]);
+      const asNumber = typeof cleaned === "string" && cleaned !== "" && !Number.isNaN(Number(cleaned))
+        ? Number(cleaned)
+        : cleaned;
+      cleanedRow[key] = asNumber as string | number | null;
+    }
+    return cleanedRow;
+  });
+
   const headers = rows.length > 0 ? Object.keys(rows[0]) : [];
 
   return {
