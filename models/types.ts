@@ -1,4 +1,4 @@
-// MINE AI V0.1 — Shared data models
+ // MINE AI V0.1 — Shared data models
 // These types are the contract every engine communicates through.
 // No engine may bypass these shapes.
 
@@ -20,6 +20,7 @@ export interface ColumnProfile {
   duplicateFlag: boolean;
   stats?: NumericStats; // present only when type === "numeric"
   qualityIssues: string[];
+  plainSummary?: string; // plain-English summary, present only when type === "numeric"
 }
 
 export interface Dataset {
