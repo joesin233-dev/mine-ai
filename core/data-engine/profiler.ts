@@ -79,6 +79,25 @@ function computeNumericStats(values: number[]): NumericStats {
   };
 }
 
+/**
+ * Builds a one-sentence, plain-English summary of a numeric column's
+ * shape, so non-technical readers don't need to interpret raw statistics
+ * themselves.
+ */
+function buildPlainSummary(name: string, stats: NumericStats): string {
+  const spread = stats.stdDev / stats.mean;
+  const consistency =
+    spread < 0.1
+      ? "stayed fairly steady, without big swings"
+      : spread < 0.3
+      ? "varied a moderate amount"
+      : "varied quite a lot from period to period";
+
+  return `In simple terms: ${name} averaged around ${stats.mean.toFixed(
+    2
+  )}, and ${consistency} (ranging from ${stats.min} to ${stats.max}).`;
+}
+
 function profileColumn(
   name: string,
   values: (string | number | null)[]
@@ -92,12 +111,14 @@ function profileColumn(
   }
 
   let stats: NumericStats | undefined;
+  let plainSummary: string | undefined;
   if (type === "numeric") {
     const numericValues = values.filter(
       (v): v is number => typeof v === "number" && !Number.isNaN(v)
     );
     if (numericValues.length > 0) {
       stats = computeNumericStats(numericValues);
+      plainSummary = buildPlainSummary(name, stats);
     }
   }
 
@@ -118,6 +139,7 @@ function profileColumn(
     duplicateFlag,
     stats,
     qualityIssues,
+    plainSummary,
   };
 }
 
