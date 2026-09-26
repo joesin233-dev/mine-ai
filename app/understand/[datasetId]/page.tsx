@@ -79,6 +79,11 @@ export default function UnderstandPage({
               <li>Std Dev: {col.stats.stdDev.toFixed(2)}</li>
             </ul>
           )}
+          {col.plainSummary && (
+            <p style={{ margin: "8px 0 0", fontSize: 14, color: "#333" }}>
+              {col.plainSummary}
+            </p>
+          )}
         </div>
       ))}
     </main>
