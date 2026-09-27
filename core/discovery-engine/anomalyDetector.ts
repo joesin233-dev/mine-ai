@@ -1,4 +1,3 @@
-t keep this code safe
 // MINE AI V0.1 — Discovery Engine: Anomaly Detector
 // Stage 4: flags individual data points that sit unusually far from the
 // rest of the column's values, using a standard z-score. This detects
