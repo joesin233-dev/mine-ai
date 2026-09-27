@@ -9,55 +9,45 @@ import { parseFile } from "@/core/data-engine/parser";
 import { runDiscovery } from "@/core/discovery-engine/discover";
 import type { Dataset, Finding } from "@/models/types";
 
-const SAVE_BATCH_SIZE = 5; // save a few findings at once, not all or one-by-one
+export async function POST(req: NextRequest) {
+const body = await req.json();
+const { datasetId } = body;
 
-async function saveFindingsInBatches(
-  findingsStore: ReturnType<typeof createStore<Finding>>,
-  findings: Finding[]
-) {
-  for (let i = 0; i < findings.length; i += SAVE_BATCH_SIZE) {
-    const batch = findings.slice(i, i + SAVE_BATCH_SIZE);
-    await Promise.all(batch.map((finding) => findingsStore.save(finding.id, finding)));
-  }
+if (!datasetId) {
+return NextResponse.json({ error: "datasetId is required" }, { status: 400 });
 }
 
-export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const { datasetId } = body;
+const processedStore = createStore<Dataset>("processed");
+const dataset = await processedStore.load(datasetId);
 
-  if (!datasetId) {
-    return NextResponse.json({ error: "datasetId is required" }, { status: 400 });
-  }
+if (!dataset) {
+return NextResponse.json({ error: "Dataset not found" }, { status: 404 });
+}
 
-  const processedStore = createStore<Dataset>("processed");
-  const dataset = await processedStore.load(datasetId);
+const extension = dataset.filename.split(".").pop()?.toLowerCase() ?? "csv";
 
-  if (!dataset) {
-    return NextResponse.json({ error: "Dataset not found" }, { status: 404 });
-  }
+let buffer;
+try {
+buffer = await loadRawUpload(datasetId, extension);
+} catch {
+return NextResponse.json(
+{ error: "The original uploaded file could not be found." },
+{ status: 500 }
+);
+}
 
-  const extension = dataset.filename.split(".").pop()?.toLowerCase() ?? "csv";
+const parseResult = parseFile(buffer, extension);
 
-  let buffer;
-  try {
-    buffer = await loadRawUpload(datasetId, extension);
-  } catch {
-    return NextResponse.json(
-      { error: "The original uploaded file could not be found." },
-      { status: 500 }
-    );
-  }
+const findings = runDiscovery({
+datasetId,
+dataset,
+rows: parseResult.rows,
+});
 
-  const parseResult = parseFile(buffer, extension);
+const findingsStore = createStore<Finding>("findings");
+for (const finding of findings) {
+await findingsStore.save(finding.id, finding);
+}
 
-  const findings = runDiscovery({
-    datasetId,
-    dataset,
-    rows: parseResult.rows,
-  });
-
-  const findingsStore = createStore<Finding>("findings");
-  await saveFindingsInBatches(findingsStore, findings);
-
-  return NextResponse.json({ findings });
+return NextResponse.json({ findings });
 }
