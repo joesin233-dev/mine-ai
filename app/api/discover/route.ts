@@ -9,6 +9,18 @@ import { parseFile } from "@/core/data-engine/parser";
 import { runDiscovery } from "@/core/discovery-engine/discover";
 import type { Dataset, Finding } from "@/models/types";
 
+const SAVE_BATCH_SIZE = 5; // save a few findings at once, not all or one-by-one
+
+async function saveFindingsInBatches(
+  findingsStore: ReturnType<typeof createStore<Finding>>,
+  findings: Finding[]
+) {
+  for (let i = 0; i < findings.length; i += SAVE_BATCH_SIZE) {
+    const batch = findings.slice(i, i + SAVE_BATCH_SIZE);
+    await Promise.all(batch.map((finding) => findingsStore.save(finding.id, finding)));
+  }
+}
+
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const { datasetId } = body;
@@ -45,9 +57,7 @@ export async function POST(req: NextRequest) {
   });
 
   const findingsStore = createStore<Finding>("findings");
-  for (const finding of findings) {
-    await findingsStore.save(finding.id, finding);
-  }
+  await saveFindingsInBatches(findingsStore, findings);
 
   return NextResponse.json({ findings });
 }
