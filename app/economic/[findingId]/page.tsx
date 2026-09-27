@@ -47,7 +47,7 @@ export default function EconomicPage({
       <h1>Economic Impact</h1>
 
       <label style={{ display: "block", marginTop: 16, fontSize: 14 }}>
-        Value per unit ($)
+        Value per unit (in your local currency)
       </label>
       <input
         type="number"
@@ -98,4 +98,3 @@ export default function EconomicPage({
     </main>
   );
 }
-
