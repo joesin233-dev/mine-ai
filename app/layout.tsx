@@ -5,9 +5,11 @@ export const metadata = {
 
 const globalCss = [
   "body { background: #ffffff; color: #1a2332; }",
-  "h1, h2, h3 { color: #1a2332; }",
-  "a { color: #9a6b00; }",
-  "button { background: #f5b800; color: #1a2332; border: 2px solid #1a2332; font-weight: 600; cursor: pointer; }",
+  "h1 { color: #1a2332; display: inline-block; border-bottom: 3px solid #d4a017; padding-bottom: 4px; }",
+  "h2, h3 { color: #1a2332; }",
+  "a { color: #1a2332; text-decoration-color: #d4a017; text-underline-offset: 3px; }",
+  "button { background: #1a2332; color: #ffffff; border: none; font-weight: 600; cursor: pointer; }",
+  "button:hover { background: #2c3e57; }",
   "button:disabled { opacity: 0.6; cursor: not-allowed; }",
 ].join(" ");
 
