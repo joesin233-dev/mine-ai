@@ -8,10 +8,27 @@ export default function HomePage() {
         fontFamily: "system-ui, sans-serif",
       }}
     >
-      <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          marginBottom: 16,
+        }}
+      >
         <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
-          <circle cx="24" cy="24" r="14" stroke="#1a2332" strokeWidth="3" />
-          <path d="M34 34L46 46" stroke="#1a2332" strokeWidth="3" strokeLinecap="round" />
+          <circle
+            cx="24"
+            cy="24"
+            r="14"
+            stroke="#1a2332"
+            strokeWidth="3"
+          />
+          <path
+            d="M34 34L46 46"
+            stroke="#1a2332"
+            strokeWidth="3"
+            strokeLinecap="round"
+          />
           <path
             d="M16 26L21 20L26 24L32 16"
             stroke="#d4a017"
@@ -23,22 +40,16 @@ export default function HomePage() {
         </svg>
       </div>
 
-      <h1 style={{ textAlign: "center", color: "#1a2332", fontSize: 32, marginBottom: 4 }}>
-        Tarpec AI
-      </h1>
-
-      <p
+      <h1
         style={{
           textAlign: "center",
-          color: "#666",
-          fontSize: 13,
-          fontStyle: "italic",
-          marginTop: 0,
-          marginBottom: 20,
+          color: "#1a2332",
+          fontSize: 32,
+          marginBottom: 4,
         }}
       >
-        Made by Joe Sin
-      </p>
+        Tarpec AI
+      </h1>
 
       <p
         style={{
