@@ -23,16 +23,22 @@ export default function HomePage() {
         </svg>
       </div>
 
-      <h1
-        style={{
-          textAlign: "center",
-          color: "#1a2332",
-          fontSize: 32,
-          marginBottom: 4,
-        }}
-      >
+      <h1 style={{ textAlign: "center", color: "#1a2332", fontSize: 32, marginBottom: 4 }}>
         Tarpec AI
       </h1>
+
+      <p
+        style={{
+          textAlign: "center",
+          color: "#666",
+          fontSize: 13,
+          fontStyle: "italic",
+          marginTop: 0,
+          marginBottom: 20,
+        }}
+      >
+        Made by Joe Sin
+      </p>
 
       <p
         style={{
