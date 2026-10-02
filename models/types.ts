@@ -1,4 +1,4 @@
- // MINE AI V0.1 — Shared data models
+// MINE AI V0.1 — Shared data models
 // These types are the contract every engine communicates through.
 // No engine may bypass these shapes.
 
@@ -23,12 +23,30 @@ export interface ColumnProfile {
   plainSummary?: string; // plain-English summary, present only when type === "numeric"
 }
 
+export type QualityRating = "good" | "usable_with_warnings" | "not_reliable";
+
+export interface QualityIssue {
+  check: "missing" | "duplicates" | "date_gaps" | "impossible" | "size";
+  severity: "info" | "warning" | "serious";
+  column?: string;
+  count: number;
+  message: string;
+}
+
+export interface QualityReport {
+  rating: QualityRating;
+  ratingLabel: string;
+  summary: string;
+  issues: QualityIssue[];
+}
+
 export interface Dataset {
   id: string;
   filename: string;
   uploadedAt: string; // ISO timestamp
   rowCount: number;
   columns: ColumnProfile[];
+  quality?: QualityReport;
 }
 
 export type ValueType = "observed" | "calculated" | "estimated";
@@ -100,20 +118,4 @@ export interface Report {
   confidenceSummary: string;
   recommendedNextInvestigation: string;
   generatedAt: string;
-}
-export type QualityRating = "good" | "usable_with_warnings" | "not_reliable";
-
-export interface QualityIssue {
-  check: "missing" | "duplicates" | "date_gaps" | "impossible" | "size";
-  severity: "info" | "warning" | "serious";
-  column?: string;
-  count: number;
-  message: string;
-}
-
-export interface QualityReport {
-  rating: QualityRating;
-  ratingLabel: string;
-  summary: string;
-  issues: QualityIssue[];
 }
