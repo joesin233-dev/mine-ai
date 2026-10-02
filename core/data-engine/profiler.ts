@@ -1,4 +1,3 @@
-import { assessQuality } from "./qualityChecks";
 // MINE AI V0.1 — Data Engine: Profiler
 // Stage 3: turns validated rows into a full Dataset profile — column types,
 // statistics, and data-quality flags. This is where "raw rows" becomes
@@ -8,9 +7,12 @@ import { assessQuality } from "./qualityChecks";
 // Update: the plain-English summary now compares the first half of the data
 // with the second half (in date order when a date column exists), so a column
 // that clearly shifted is never described as "steady".
+//
+// Update: profileDataset now also attaches a data-quality report.
 
 import type { ParseResult } from "./parser";
 import type { ColumnProfile, ColumnType, NumericStats, Dataset } from "@/models/types";
+import { assessQuality } from "./qualityChecks";
 
 /**
  * Guesses a column's type by inspecting its actual values.
@@ -41,7 +43,7 @@ function detectColumnType(values: (string | number | null)[]): ColumnType {
 
   return "categorical";
 }
-const quality = assessQuality(parseResult, columns);
+
 function computeNumericStats(values: number[]): NumericStats {
   const sorted = [...values].sort((a, b) => a - b);
   const n = sorted.length;
@@ -246,11 +248,14 @@ export function profileDataset(
     return profileColumn(header, columnValues, orderedValues);
   });
 
+  const quality = assessQuality(parseResult, columns);
+
   return {
     id: datasetId,
     filename,
     uploadedAt: new Date().toISOString(),
     rowCount: parseResult.rowCount,
     columns,
+    quality,
   };
 }
