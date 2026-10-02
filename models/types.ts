@@ -101,3 +101,19 @@ export interface Report {
   recommendedNextInvestigation: string;
   generatedAt: string;
 }
+export type QualityRating = "good" | "usable_with_warnings" | "not_reliable";
+
+export interface QualityIssue {
+  check: "missing" | "duplicates" | "date_gaps" | "impossible" | "size";
+  severity: "info" | "warning" | "serious";
+  column?: string;
+  count: number;
+  message: string;
+}
+
+export interface QualityReport {
+  rating: QualityRating;
+  ratingLabel: string;
+  summary: string;
+  issues: QualityIssue[];
+}
