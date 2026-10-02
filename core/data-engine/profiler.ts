@@ -1,3 +1,4 @@
+import { assessQuality } from "./qualityChecks";
 // MINE AI V0.1 — Data Engine: Profiler
 // Stage 3: turns validated rows into a full Dataset profile — column types,
 // statistics, and data-quality flags. This is where "raw rows" becomes
@@ -40,7 +41,7 @@ function detectColumnType(values: (string | number | null)[]): ColumnType {
 
   return "categorical";
 }
-
+const quality = assessQuality(parseResult, columns);
 function computeNumericStats(values: number[]): NumericStats {
   const sorted = [...values].sort((a, b) => a - b);
   const n = sorted.length;
