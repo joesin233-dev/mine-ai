@@ -2,6 +2,10 @@
 // Stage 8: given a findingId and user-supplied inputs (e.g. valuePerUnit),
 // returns the calculated economic impact — or a clear list of what's
 // missing if the calculation can't be completed yet.
+//
+// Update: the currency symbol comes from the uploaded file itself (read by
+// the parser). Nothing is hardcoded or guessed. If the file has plain
+// numbers, currency stays empty.
 
 import { NextRequest, NextResponse } from "next/server";
 import { createStore, loadRawUpload } from "@/storage/fileStore";
@@ -48,6 +52,7 @@ export async function POST(req: NextRequest) {
     dataset,
     rows: parseResult.rows,
     providedInputs: inputs ?? {},
+    currency: parseResult.currencySymbol ?? "",
   });
 
   const economicStore = createStore<EconomicResult>("economic");
