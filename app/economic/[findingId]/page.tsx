@@ -1,6 +1,10 @@
 // Stage 9 — Economic Impact screen, now real: lets the user supply the
 // required input (e.g. valuePerUnit) and shows the calculated result, or
 // asks for what's missing.
+//
+// Update: the currency shown is the file's own symbol (read by the parser).
+// If the file has plain numbers, only the number is shown, with a note that
+// it is in the file's currency. Nothing is hardcoded or guessed.
 "use client";
 
 import { useState } from "react";
@@ -42,6 +46,8 @@ export default function EconomicPage({
     setLoading(false);
   }
 
+  const symbol = result?.currency ? result.currency.trim() : "";
+
   return (
     <main style={{ padding: 24, maxWidth: 480, margin: "0 auto" }}>
       <h1>Economic Impact</h1>
@@ -79,8 +85,14 @@ export default function EconomicPage({
       {result && result.result !== null && (
         <div style={{ marginTop: 16, padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>
           <p style={{ fontSize: 22, fontWeight: "bold" }}>
-            {result.currency} {result.result.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            {symbol ? `${symbol} ` : ""}
+            {result.result.toLocaleString(undefined, { maximumFractionDigits: 2 })}
           </p>
+          {!symbol && (
+            <p style={{ fontSize: 13, color: "#666" }}>
+              in the currency used in your file
+            </p>
+          )}
           <p style={{ fontSize: 13, color: "#666" }}>{result.formula}</p>
           <p style={{ fontSize: 12, color: "#999", marginTop: 8 }}>
             Value type: {result.valueType}
