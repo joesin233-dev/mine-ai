@@ -3,6 +3,9 @@
 // either directly observed in the data or explicitly supplied by the user —
 // nothing is invented. The formula used is always recorded alongside the
 // result, per the "must record inputs, formula, result" rule.
+//
+// Update: the formula text no longer contains a hardcoded "$". The value per
+// unit is shown as a plain number, in the file's own currency.
 
 export interface QuantityChange {
   variableName: string;
@@ -21,7 +24,7 @@ export function calculateImpact(
 ): FormulaResult {
   const result = quantityChange.totalChange * valuePerUnit;
 
-  const formula = `${quantityChange.variableName} total change (${quantityChange.totalChange.toFixed(2)} units, across ${quantityChange.comparisonRowCount} rows) × value per unit ($${valuePerUnit})`;
+  const formula = `${quantityChange.variableName} total change (${quantityChange.totalChange.toFixed(2)} units, across ${quantityChange.comparisonRowCount} rows) × value per unit (${valuePerUnit})`;
 
   return { formula, result };
 }
