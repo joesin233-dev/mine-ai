@@ -21,7 +21,7 @@ export function calculateImpact(
 ): FormulaResult {
   const result = quantityChange.totalChange * valuePerUnit;
 
-  const formula = `${quantityChange.variableName} total change (${quantityChange.totalChange.toFixed(2)} units, across ${quantityChange.comparisonRowCount} rows) × value per unit (${valuePerUnit})`;
+  const formula = `${quantityChange.variableName} total change (${quantityChange.totalChange.toFixed(2)} units, across ${quantityChange.comparisonRowCount} rows) × value per unit ($${valuePerUnit})`;
 
   return { formula, result };
 }
