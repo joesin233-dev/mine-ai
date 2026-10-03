@@ -48,7 +48,7 @@ function average(values: number[]): number {
 }
 
 export function calculateEconomicImpact(input: CalculateEconomicInput): EconomicResult {
-  const { finding, rows, providedInputs, currency = "USD" } = input;
+  const { finding, rows, providedInputs, currency = "" } = input;
 
   const inputCheck = checkRequiredInputs(providedInputs);
 
