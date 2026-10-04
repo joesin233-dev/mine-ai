@@ -1,8 +1,11 @@
-// MINE AI V0.1 — Evidence Engine: Evidence Collector
+// Tarpec AI — Evidence Engine: Evidence Collector
 // Stage 7: assembles the factual record behind a finding — what data was
 // used, what was calculated, and which contributors support or contradict
 // the finding. This is the audit trail per the locked "must be auditable"
 // rule — every number here traces back to a real calculation.
+//
+// Update: the relationship number is labelled honestly (strength from 0 to
+// 1, direction ignored) instead of as a signed correlation.
 
 import type { Contributor, EvidenceCalculation, Finding } from "@/models/types";
 
@@ -33,8 +36,9 @@ export function collectEvidence(
       result: finding.magnitude,
     },
     ...contributors.map((c) => ({
-      label: `${c.variableName} correlation with ${targetVariable}`,
-      formula: "Pearson correlation coefficient",
+      label: `${c.variableName} relationship strength with ${targetVariable}`,
+      formula:
+        "Absolute value of the Pearson correlation (0 = none, 1 = perfect; direction ignored)",
       result: c.scoreBreakdown.correlation,
     })),
   ];
@@ -44,16 +48,16 @@ export function collectEvidence(
     .filter((c) => c.evidenceStrength === "high" || c.evidenceStrength === "medium")
     .map(
       (c) =>
-        `${c.variableName} ${c.observedChange}, with a correlation of ${c.scoreBreakdown.correlation} to ${targetVariable} — evidence strength: ${c.evidenceStrength}.`
+        `${c.variableName} ${c.observedChange}, with a relationship strength of ${c.scoreBreakdown.correlation} (scale 0 to 1) to ${targetVariable} — evidence strength: ${c.evidenceStrength}.`
     );
 
-  // Contradicting: contributors whose own contradictingEvidence score is
-  // notably high, meaning their movement doesn't reliably track the target.
+  // Contradicting: contributors that do not reliably move together with the
+  // target from one row to the next (in either direction).
   const contradictingEvidence = contributors
     .filter((c) => c.scoreBreakdown.contradictingEvidence >= 0.6)
     .map(
       (c) =>
-        `${c.variableName} does not consistently move with ${targetVariable} (inconsistency score: ${c.scoreBreakdown.contradictingEvidence}), which weakens confidence in it as a contributor.`
+        `${c.variableName} does not reliably move together with ${targetVariable} from row to row (inconsistency score: ${c.scoreBreakdown.contradictingEvidence}), which weakens confidence in it as a contributor.`
     );
 
   return {
