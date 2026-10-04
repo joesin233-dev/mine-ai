@@ -1,10 +1,11 @@
 // MINE AI V0.1 — Investigation Engine: Suggested Questions
-// Builds grouped, plain-language questions from the dataset's real columns
-// (and findings when available). No AI: every suggestion is validated with
-// the real question parser + variable selector, so none can fail.
+// Builds real business questions (what affects sales? does price affect
+// quantity? why are some values so high?) from the dataset's own columns.
+// No AI: every suggestion is validated with the real question parser +
+// variable selector, so a button that wouldn't work is never shown.
 //
-// The user SEES a natural question with real numbers in it.
-// The engine receives a safe column-only question.
+// The user SEES a natural question. The engine receives a safe
+// column-only question.
 
 import type { ColumnProfile, Finding } from "@/models/types";
 import { parseQuestion } from "./questionParser";
@@ -13,41 +14,52 @@ import { selectVariables } from "./variableSelector";
 export type QuestionGroup = "changed" | "unusual" | "connected";
 
 export interface SuggestedQuestion {
-  label: string;
-  question: string;
-  basedOn: string;
+  label: string; // the question the user sees
+  question: string; // what is sent to Investigate
+  basedOn: string; // short hint about what they will get
   group: QuestionGroup;
 }
 
 const MAX_TOTAL = 6;
-const MAX_PER_GROUP = 2;
+const MAX_PER_GROUP = 3;
+const HINT_DRIVERS = "You will get: the main contributors, with evidence and confidence.";
+const HINT_LINK = "You will get: whether they move together, with evidence and confidence.";
+const HINT_UNUSUAL = "You will get: what was different when the unusual values happened.";
 
 function plain(name: string): string {
   return name.replace(/_/g, " ");
 }
 
-function fmt(n: number): string {
-  return n.toLocaleString("en-US", { maximumFractionDigits: 0 });
+function words(name: string): string[] {
+  return name.toLowerCase().split(/[^a-z]+/).filter(Boolean);
 }
 
-function describe(column: ColumnProfile | undefined): string {
-  if (!column?.plainSummary) return "A number column in your file";
-  return column.plainSummary.replace(/^In simple terms:\s*/i, "");
-}
-
-function shiftOf(
-  column: ColumnProfile | undefined
-): { dir: "up" | "down"; pct: number } | null {
-  const m = (column?.plainSummary ?? "").match(/\((up|down) (\d+)%\)/);
-  return m ? { dir: m[1] as "up" | "down", pct: Number(m[2]) } : null;
-}
-
-function shiftWords(s: { dir: "up" | "down"; pct: number }): string {
-  return `${s.dir === "down" ? "drop" : "rise"} ${s.pct}%`;
+function has(c: ColumnProfile, hints: string[]): boolean {
+  return words(c.name).some((w) => hints.some((h) => w.startsWith(h)));
 }
 
 function hasHighOutlier(c: ColumnProfile): boolean {
   return !!c.stats && c.stats.max > c.stats.mean + 3 * c.stats.stdDev;
+}
+
+function variation(c: ColumnProfile): number {
+  if (!c.stats || c.stats.mean === 0) return 0;
+  return c.stats.stdDev / Math.abs(c.stats.mean);
+}
+
+/** The main "result" column: totals, sales, revenue, profit come first. */
+function pickTarget(numeric: ColumnProfile[]): ColumnProfile | undefined {
+  const score = (c: ColumnProfile): number =>
+    has(c, ["total", "revenue", "profit", "income"])
+      ? 3
+      : has(c, ["sales", "value"])
+      ? 2
+      : has(c, ["quantity", "sold", "units", "production"])
+      ? 1
+      : 0;
+  return [...numeric].sort(
+    (a, b) => score(b) - score(a) || (b.stats?.mean ?? 0) - (a.stats?.mean ?? 0)
+  )[0];
 }
 
 export function suggestQuestions(
@@ -74,9 +86,10 @@ export function suggestQuestions(
   ): void => {
     if (out.length >= MAX_TOTAL || perGroup[group] >= MAX_PER_GROUP) return;
     if (vars.length === 0 || !vars.every((v) => byName.has(v))) return;
-    const key = vars.join("|");
+    const key = `${group}|${vars.join("|")}`;
     if (used.has(key)) return;
 
+    // The engine must be able to resolve this question to the right column.
     const question = `Investigate ${vars.map(plain).join(" ")}`;
     const matched = selectVariables(parseQuestion(question), columns).map(
       (m) => m.column.name
@@ -90,53 +103,86 @@ export function suggestQuestions(
     out.push({ label, question, basedOn, group });
   };
 
-  // 1) Strongest findings first, when we have them.
+  const target = pickTarget(numeric);
+  const price = numeric.find((c) => has(c, ["price", "rate"]));
+  const quantity = numeric.find((c) => has(c, ["quantity", "sold", "units", "volume"]));
+  const costs = numeric.filter((c) => has(c, ["cost", "expense"]));
+
+  // 0) Strongest findings first, when we have them.
   const ranked = [...findings].sort((a, b) => b.rankScore - a.rankScore);
   for (const f of ranked) {
     const vars = f.variablesInvolved.slice(0, 2);
-    const first = byName.get(vars[0]);
     const [a, b] = vars.map(plain);
-    const shift = shiftOf(first);
     if (f.type === "anomaly") {
-      add("unusual", `Why were some ${a} values unusual?`, vars, describe(first));
+      add("unusual", `Why were some ${a} values unusual?`, vars, HINT_UNUSUAL);
     } else if (f.type === "relationship") {
+      add("connected", b ? `Is ${a} linked to ${b}?` : `What is linked to ${a}?`, vars, HINT_LINK);
+    } else if (f.type === "trend") {
+      add("changed", `What is behind the trend in ${a}?`, vars, HINT_DRIVERS);
+    } else {
+      add("changed", `What is behind the change in ${a}?`, vars, HINT_DRIVERS);
+    }
+  }
+
+  // 1) The main result column.
+  if (target) {
+    add("changed", `What affects ${plain(target.name)} the most?`, [target.name], HINT_DRIVERS);
+  }
+
+  // 2) Does price affect quantity?
+  if (price && quantity && price.name !== quantity.name) {
+    add(
+      "connected",
+      `Does ${plain(price.name)} affect ${plain(quantity.name)}?`,
+      [price.name, quantity.name],
+      HINT_LINK
+    );
+  }
+
+  // 3) Unusually high values (the main column first).
+  const outliers = numeric.filter(hasHighOutlier);
+  outliers.sort((a, b) => (a === target ? -1 : b === target ? 1 : 0));
+  for (const c of outliers) {
+    add(
+      "unusual",
+      `Why are some ${plain(c.name)} values so high compared with normal?`,
+      [c.name],
+      HINT_UNUSUAL
+    );
+  }
+
+  // 4) Are the costs linked to the main result?
+  if (target) {
+    for (const c of costs) {
+      if (c.name === target.name) continue;
       add(
         "connected",
-        b ? `Is ${a} linked to ${b}?` : `What is linked to ${a}?`,
-        vars,
-        describe(first)
-      );
-    } else {
-      add(
-        "changed",
-        shift ? `Why did ${a} ${shiftWords(shift)}?` : `What is behind the change in ${a}?`,
-        vars,
-        describe(first)
+        `Is ${plain(c.name)} linked to ${plain(target.name)}?`,
+        [c.name, target.name],
+        HINT_LINK
       );
     }
   }
 
-  // 2) What changed: columns that clearly moved, biggest first.
-  const moved = numeric
-    .filter((c) => shiftOf(c) !== null)
-    .sort((a, b) => shiftOf(b)!.pct - shiftOf(a)!.pct);
-  for (const c of moved) {
-    add("changed", `Why did ${plain(c.name)} ${shiftWords(shiftOf(c)!)}?`, [c.name], describe(c));
-  }
-
-  // 3) What looks unusual: columns with very high values.
-  for (const c of numeric.filter(hasHighOutlier)) {
+  // 5) The column that swings the most.
+  const swingiest = [...numeric].sort((a, b) => variation(b) - variation(a))[0];
+  if (swingiest && variation(swingiest) >= 0.3) {
     add(
       "unusual",
-      `Why are some ${plain(c.name)} values so high (up to ${fmt(c.stats!.max)})?`,
-      [c.name],
-      `Typical ${plain(c.name)} is about ${fmt(c.stats!.median)}, but the highest value is ${fmt(c.stats!.max)}.`
+      `Why does ${plain(swingiest.name)} vary so much?`,
+      [swingiest.name],
+      HINT_UNUSUAL
     );
   }
 
-  // 4) What is connected: the remaining columns.
+  // 6) What is driving each cost.
+  for (const c of costs) {
+    add("changed", `What is driving ${plain(c.name)}?`, [c.name], HINT_DRIVERS);
+  }
+
+  // 7) Fallback so any file gets questions.
   for (const c of numeric) {
-    add("connected", `What is linked to changes in ${plain(c.name)}?`, [c.name], describe(c));
+    add("changed", `What affects ${plain(c.name)}?`, [c.name], HINT_DRIVERS);
   }
 
   return out;
