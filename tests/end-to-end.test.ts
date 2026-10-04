@@ -1,10 +1,15 @@
-// MINE AI V0.1 — Stage 11: End-to-End Pipeline Test
+// Tarpec AI — Stage 11: End-to-End Pipeline Test
 // This is the "V0.1 Success Test" from the locked blueprint (section 21):
 // a real CSV/XLSX dataset goes through UPLOAD → UNDERSTAND → DISCOVER →
 // DIAGNOSE → EVIDENCE → ECONOMIC IMPACT → REPORT, entirely without an
 // external AI API, and the known baked-in finding is detected correctly
 // at every stage. This test does not test any single engine in isolation —
 // it proves the whole system connects correctly together.
+//
+// Update: the weak-evidence control case now uses a QUANTITY column
+// (energy_kwh), because a column whose name carries a currency tag
+// (cost_usd) is money and is calculated without a value per unit. A third
+// test covers that money behaviour.
 
 import { describe, it, expect } from "vitest";
 import { promises as fs } from "fs";
@@ -127,19 +132,18 @@ describe("Stage 11 — full end-to-end pipeline (V0.1 success test)", () => {
     const parseResult = parseCsv(buffer);
     const dataset = profileDataset(datasetId, "sample-production.csv", parseResult);
 
-    // Construct an artificial finding on a column with essentially flat
-    // behavior (energy_kwh moves with production, but we isolate it here
-    // as a control case) to confirm the pipeline doesn't crash even when
-    // evidence is weak.
+    // Construct an artificial finding on a QUANTITY column (energy_kwh) as a
+    // control case, to confirm the pipeline doesn't crash even when
+    // evidence is weak and the value per unit is missing.
     const weakFinding = {
       id: "weak-finding",
       datasetId,
       type: "anomaly" as const,
-      variablesInvolved: ["cost_usd"],
+      variablesInvolved: ["energy_kwh"],
       period: { start: "2026-01-01", end: "2026-02-07" },
       magnitude: 1,
       rankScore: 1,
-      description: "cost_usd showed a minor anomaly",
+      description: "energy_kwh showed a minor anomaly",
     };
 
     const { evidence } = buildEvidence({ finding: weakFinding, dataset, rows: parseResult.rows });
@@ -162,5 +166,36 @@ describe("Stage 11 — full end-to-end pipeline (V0.1 success test)", () => {
     });
     const markdown = reportToMarkdown(report);
     expect(markdown).toContain("cannot currently be calculated");
+  });
+
+  it("calculates a money column (cost_usd) without asking for a value per unit", async () => {
+    const datasetId = "e2e-test-dataset-3";
+    const filePath = path.join(process.cwd(), "tests/fixtures/sample-production.csv");
+    const buffer = await fs.readFile(filePath);
+    const parseResult = parseCsv(buffer);
+    const dataset = profileDataset(datasetId, "sample-production.csv", parseResult);
+
+    const moneyFinding = {
+      id: "money-finding",
+      datasetId,
+      type: "change" as const,
+      variablesInvolved: ["cost_usd"],
+      period: { start: "2026-01-01", end: "2026-02-07" },
+      magnitude: 1,
+      rankScore: 1,
+      description: "cost_usd changed",
+    };
+
+    const economicResult = calculateEconomicImpact({
+      finding: moneyFinding,
+      dataset,
+      rows: parseResult.rows,
+      providedInputs: {}, // no value per unit needed: the column is already money
+    });
+
+    expect(economicResult.result).not.toBeNull();
+    expect(economicResult.currency).toBe("USD");
+    expect(economicResult.valueType).toBe("calculated");
+    expect(economicResult.missingInputs).toBeUndefined();
   });
 });
