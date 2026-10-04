@@ -1,12 +1,17 @@
-// MINE AI V0.1 — Data Engine: Parser
+// Tarpec AI — Data Engine: Parser
 // Stage 2: turns a raw uploaded file (CSV or XLSX) into a plain array of
 // row objects. This is the ONLY module that touches papaparse/xlsx directly.
 // No statistics, no interpretation — just structural conversion.
 //
-// Update: the parser now REMEMBERS the currency symbol it finds in the file
-// (₦ $ £ € ₹ K) instead of throwing it away. It never converts currencies
-// and never guesses: if the file has plain numbers, currencySymbol is
-// left undefined.
+// The parser REMEMBERS the file's own currency instead of throwing it away.
+// It looks, in this order, at:
+//   1) symbols inside the cells (₦ $ £ € ₹ K)
+//   2) Excel cell number formats (for example "₦"#,##0)
+//   3) tags in column names (for example "Total Sales Value (NGN)", "cost_usd"),
+//      accepted only if the system's own ISO currency standard confirms the
+//      tag is a currency. Tarpec stores NO currency list of its own.
+// It never converts currencies and never guesses: if the file says
+// nothing, currencySymbol is left undefined.
 
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
@@ -17,28 +22,59 @@ export interface ParseResult {
   rows: RawRow[];
   headers: string[];
   rowCount: number;
-  currencySymbol?: string; // the file's own symbol, if it has one
+  currencySymbol?: string; // the file's own currency, if it states one
 }
 
 const CURRENCY_SYMBOLS = /[₦$£€₹K]/gi;
 
-type SymbolTally = Record<string, number>;
+type Tally = Record<string, number>;
 
-function addToTally(tally: SymbolTally, symbol: string): void {
+// The system's own list of ISO currency codes (not stored in Tarpec).
+let systemCurrencies: Set<string> | null = null;
+function isCurrencyCode(code: string): boolean {
+  if (!systemCurrencies) {
+    try {
+      const supported = (
+        Intl as unknown as { supportedValuesOf?: (key: string) => string[] }
+      ).supportedValuesOf;
+      systemCurrencies = new Set(supported ? supported("currency") : []);
+    } catch {
+      systemCurrencies = new Set();
+    }
+  }
+  return systemCurrencies.has(code.toUpperCase());
+}
+
+function addToTally(tally: Tally, symbol: string): void {
   const key = symbol.toUpperCase() === "K" ? "K" : symbol;
   tally[key] = (tally[key] ?? 0) + 1;
 }
 
-function mostCommonSymbol(tally: SymbolTally): string | undefined {
+function mostCommon(tally: Tally): string | undefined {
   let best: string | undefined;
   let bestCount = 0;
-  for (const symbol of Object.keys(tally)) {
-    if (tally[symbol] > bestCount) {
-      best = symbol;
-      bestCount = tally[symbol];
+  for (const key of Object.keys(tally)) {
+    if (tally[key] > bestCount) {
+      best = key;
+      bestCount = tally[key];
     }
   }
   return best;
+}
+
+/**
+ * Reads a currency tag from column names such as "Total Sales Value (NGN)"
+ * or "cost_usd". A tag counts only if the system confirms it is a currency.
+ */
+function currencyFromHeaders(headers: string[]): string | undefined {
+  const tally: Tally = {};
+  for (const header of headers) {
+    const parts = header.split(/[^A-Za-z]+/).filter((p) => p.length === 3);
+    for (const part of parts) {
+      if (isCurrencyCode(part)) addToTally(tally, part.toUpperCase());
+    }
+  }
+  return mostCommon(tally);
 }
 
 /**
@@ -47,7 +83,7 @@ function mostCommonSymbol(tally: SymbolTally): string | undefined {
  * plain number — and record which symbol was used.
  * Leaves genuinely non-numeric text untouched.
  */
-function cleanCurrencyValue(value: unknown, tally: SymbolTally): unknown {
+function cleanCurrencyValue(value: unknown, tally: Tally): unknown {
   if (typeof value !== "string") return value;
 
   const trimmed = value.trim();
@@ -83,7 +119,7 @@ function symbolFromFormat(format: string): string | null {
  */
 export function parseCsv(buffer: Buffer): ParseResult {
   const text = buffer.toString("utf-8");
-  const tally: SymbolTally = {};
+  const tally: Tally = {};
   const result = Papa.parse<RawRow>(text, {
     header: true,
     skipEmptyLines: true,
@@ -98,7 +134,7 @@ export function parseCsv(buffer: Buffer): ParseResult {
     rows,
     headers,
     rowCount: rows.length,
-    currencySymbol: mostCommonSymbol(tally),
+    currencySymbol: mostCommon(tally) ?? currencyFromHeaders(headers),
   };
 }
 
@@ -110,7 +146,7 @@ export function parseXlsx(buffer: Buffer): ParseResult {
   const workbook = XLSX.read(buffer, { type: "buffer", cellNF: true });
   const firstSheetName = workbook.SheetNames[0];
   const sheet = workbook.Sheets[firstSheetName];
-  const tally: SymbolTally = {};
+  const tally: Tally = {};
 
   // Look for currency symbols stored in the cells' number formats.
   for (const key of Object.keys(sheet)) {
@@ -146,7 +182,7 @@ export function parseXlsx(buffer: Buffer): ParseResult {
     rows,
     headers,
     rowCount: rows.length,
-    currencySymbol: mostCommonSymbol(tally),
+    currencySymbol: mostCommon(tally) ?? currencyFromHeaders(headers),
   };
 }
 
