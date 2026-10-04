@@ -1,13 +1,22 @@
-// Stage 9 — Investigation question screen, now real.
+// Stage 9 — Investigation question screen.
 //
-// Update: shows tap-to-ask suggested questions built from the dataset's own
-// columns, so users never have to guess what to type. They can still type
-// their own question; a hint lists the column names Tarpec understands.
+// Update: tap-to-ask questions are grouped under headings (what changed,
+// what looks unusual, what is connected), each with real numbers from the
+// user's file, so people can see which question fits what they care about.
 "use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { SuggestedQuestion } from "@/core/investigation-engine/suggestQuestions";
+import type {
+  SuggestedQuestion,
+  QuestionGroup,
+} from "@/core/investigation-engine/suggestQuestions";
+
+const GROUPS: { id: QuestionGroup; title: string }[] = [
+  { id: "changed", title: "What changed" },
+  { id: "unusual", title: "What looks unusual" },
+  { id: "connected", title: "What is connected" },
+];
 
 export default function InvestigateQuestionPage({
   params,
@@ -76,39 +85,53 @@ export default function InvestigateQuestionPage({
     <main style={{ padding: 24, maxWidth: 480, margin: "0 auto" }}>
       <h1>Investigate</h1>
 
-      {suggestions.length > 0 && (
-        <div style={{ marginTop: 16 }}>
-          <p style={{ color: "#666", fontSize: 14, marginBottom: 8 }}>
-            Tap a question to start:
-          </p>
-          {suggestions.map((s) => (
-            <button
-              key={s.question}
-              onClick={() => runInvestigation(s.question)}
-              disabled={loading}
-              style={{
-                display: "block",
-                width: "100%",
-                textAlign: "left",
-                padding: "12px 14px",
-                fontSize: 15,
-                marginBottom: 8,
-                borderRadius: 8,
-                border: "1px solid #ddd",
-                background: "#fff",
-                cursor: "pointer",
-              }}
-            >
-              {s.label}
-              <span style={{ display: "block", fontSize: 12, color: "#999", marginTop: 2 }}>
-                {s.basedOn}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
+      {GROUPS.map((group) => {
+        const items = suggestions.filter((s) => s.group === group.id);
+        if (items.length === 0) return null;
+        return (
+          <div key={group.id} style={{ marginTop: 20 }}>
+            <p style={{ color: "#1a2233", fontSize: 15, fontWeight: 700, marginBottom: 8 }}>
+              {group.title}
+            </p>
+            {items.map((s) => (
+              <button
+                key={s.question}
+                onClick={() => runInvestigation(s.question)}
+                disabled={loading}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "12px 14px",
+                  fontSize: 16,
+                  fontWeight: 600,
+                  marginBottom: 8,
+                  borderRadius: 8,
+                  border: "1px solid #ddd",
+                  background: "#fff",
+                  color: "#1a2233",
+                  cursor: "pointer",
+                }}
+              >
+                {s.label}
+                <span
+                  style={{
+                    display: "block",
+                    fontSize: 13,
+                    fontWeight: 400,
+                    color: "#666",
+                    marginTop: 4,
+                  }}
+                >
+                  {s.basedOn}
+                </span>
+              </button>
+            ))}
+          </div>
+        );
+      })}
 
-      <p style={{ color: "#666", marginTop: 20 }}>Or type your own question:</p>
+      <p style={{ color: "#666", marginTop: 24 }}>Or type your own question:</p>
 
       <textarea
         value={question}
