@@ -1,7 +1,9 @@
-// MINE AI V0.1 — Investigation Engine: Orchestrator
+// Tarpec AI — Investigation Engine: Orchestrator
 // Stage 5: the full pipeline — question in, targeted Finding out (or a
 // clarification request if the question couldn't be confidently understood).
 // Per the locked rules: no external AI/LLM, and no guessing when uncertain.
+//
+// Update: empty cells and text are skipped (NaN), never counted as 0.
 
 import type { Dataset, Finding } from "@/models/types";
 import { parseQuestion } from "./questionParser";
@@ -22,6 +24,13 @@ export interface InvestigateResult {
   finding?: Finding;
 }
 
+/** Empty cells and text become NaN (not 0), so they are skipped. */
+function toNumber(value: string | number | null | undefined): number {
+  if (typeof value === "number") return value;
+  if (typeof value === "string" && value.trim() !== "") return Number(value);
+  return NaN;
+}
+
 export function runInvestigation(input: InvestigateInput): InvestigateResult {
   const { datasetId, dataset, rows, question } = input;
 
@@ -33,7 +42,7 @@ export function runInvestigation(input: InvestigateInput): InvestigateResult {
       needsClarification: true,
       clarificationMessage:
         "I couldn't confidently match your question to a column in this dataset. " +
-        "Could you name the specific variable you're asking about (e.g. \"production\", \"downtime\")?",
+        "Could you mention one of the column names from your file in your question?",
     };
   }
 
@@ -48,8 +57,8 @@ export function runInvestigation(input: InvestigateInput): InvestigateResult {
     : rows.map((_, i) => i);
 
   const allValues = rows
-    .map((row) => Number(row[targetColumn.name]))
-    .filter((v) => !Number.isNaN(v));
+    .map((row) => toNumber(row[targetColumn.name]))
+    .filter((v) => Number.isFinite(v));
 
   if (allValues.length < 4) {
     return {
@@ -66,8 +75,12 @@ export function runInvestigation(input: InvestigateInput): InvestigateResult {
 
   if (timePeriod && dateColumn) {
     const { inPeriod, outsidePeriod } = splitRowsByMonth(dateValues, timePeriod.monthIndex);
-    comparisonValues = inPeriod.map((i) => Number(rows[i][targetColumn.name])).filter((v) => !Number.isNaN(v));
-    baselineValues = outsidePeriod.map((i) => Number(rows[i][targetColumn.name])).filter((v) => !Number.isNaN(v));
+    comparisonValues = inPeriod
+      .map((i) => toNumber(rows[i][targetColumn.name]))
+      .filter((v) => Number.isFinite(v));
+    baselineValues = outsidePeriod
+      .map((i) => toNumber(rows[i][targetColumn.name]))
+      .filter((v) => Number.isFinite(v));
     periodDescription = timePeriod.monthName;
   } else {
     // No specific period mentioned — fall back to first half vs second half.
