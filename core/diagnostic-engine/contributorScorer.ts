@@ -1,12 +1,12 @@
-// MINE AI V0.1 — Diagnostic Engine: Contributor Scorer
+// Tarpec AI — Diagnostic Engine: Contributor Scorer
 // Stage 6: scores each candidate contributor transparently, using only
 // real calculations. Per the locked causation rule, this NEVER concludes
 // that a contributor caused the finding — only how strongly it is
 // associated with it, in plain, careful language.
 //
-// Update: consistency is now direction-aware (a column that reliably moves
-// opposite to the target is consistent, not contradicting), and the
-// temporal check pairs candidate and target values row by row.
+// Update: consistency is direction-aware; the contradicting score is
+// rescaled so 0 = perfectly consistent and 1 = no reliable pattern;
+// missing values are skipped.
 
 import type { ColumnProfile, Contributor } from "@/models/types";
 import { average, pearsonCorrelation, signAwareConsistency } from "./statsHelpers";
@@ -26,10 +26,10 @@ export function scoreContributor(input: ScoringInput): Contributor {
   // baseline/comparison split used for the target variable's finding.
   const baselineVals = baselineIndices
     .map((i) => candidateValues[i])
-    .filter((v) => !Number.isNaN(v));
+    .filter((v) => Number.isFinite(v));
   const comparisonVals = comparisonIndices
     .map((i) => candidateValues[i])
-    .filter((v) => !Number.isNaN(v));
+    .filter((v) => Number.isFinite(v));
 
   let magnitudeScore = 0;
   let observedChangeText = "no measurable change";
@@ -53,7 +53,7 @@ export function scoreContributor(input: ScoringInput): Contributor {
   // using rows where BOTH the candidate and the target have a value.
   const pairs = comparisonIndices
     .map((i) => [candidateValues[i], targetValues[i]] as const)
-    .filter(([c, t]) => !Number.isNaN(c) && !Number.isNaN(t));
+    .filter(([c, t]) => Number.isFinite(c) && Number.isFinite(t));
   const temporalCorrelation =
     pairs.length >= 2
       ? pearsonCorrelation(
@@ -64,12 +64,13 @@ export function scoreContributor(input: ScoringInput): Contributor {
   const temporalAlignmentScore = Math.abs(temporalCorrelation);
 
   // Consistency: how reliably the candidate and target move together
-  // row to row, in either direction.
+  // row to row, in either direction (0.5 = no pattern, 1 = always).
   const consistencyScore = signAwareConsistency(candidateValues, targetValues);
 
-  // Contradicting evidence: the part of the row-to-row movement that does
-  // not follow the main pattern.
-  const contradictingEvidenceScore = 1 - consistencyScore;
+  // Contradicting evidence: 0 = perfectly consistent, 1 = no reliable
+  // pattern (or no comparable movements at all).
+  const contradictingEvidenceScore =
+    consistencyScore === 0 ? 1 : Math.min(1, (1 - consistencyScore) * 2);
 
   const overallScore =
     magnitudeScore * 0.3 +
