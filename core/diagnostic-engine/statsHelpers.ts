@@ -32,10 +32,8 @@ export function pearsonCorrelation(x: number[], y: number[]): number | null {
 }
 
 /**
- * Fraction of paired points where x and y moved in the same direction
- * from one row to the next. Used as a simple consistency signal —
- * high consistency means the candidate reliably moves with the target,
- * not just on average.
+ * Fraction of paired points where x and y moved in the SAME direction
+ * from one row to the next. (Kept for existing callers.)
  */
 export function directionalConsistency(x: number[], y: number[]): number {
   const n = Math.min(x.length, y.length);
@@ -54,4 +52,31 @@ export function directionalConsistency(x: number[], y: number[]): number {
 
   if (total === 0) return 0;
   return agree / total;
+}
+
+/**
+ * How reliably x and y move together row to row, in EITHER direction.
+ * A column that always moves opposite to the target is just as consistent
+ * as one that always moves with it, so this returns the larger of
+ * "same direction" and "opposite direction". 1 = perfectly consistent,
+ * 0.5 = no pattern.
+ */
+export function signAwareConsistency(x: number[], y: number[]): number {
+  const n = Math.min(x.length, y.length);
+  if (n < 2) return 0;
+
+  let same = 0;
+  let total = 0;
+
+  for (let i = 1; i < n; i++) {
+    const dx = x[i] - x[i - 1];
+    const dy = y[i] - y[i - 1];
+    if (dx === 0 || dy === 0) continue;
+    total++;
+    if (Math.sign(dx) === Math.sign(dy)) same++;
+  }
+
+  if (total === 0) return 0;
+  const sameFraction = same / total;
+  return Math.max(sameFraction, 1 - sameFraction);
 }
