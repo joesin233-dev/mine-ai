@@ -1,8 +1,8 @@
 // Stage 9 — Investigation question screen.
 //
-// Update: tap-to-ask questions are grouped under headings (what changed,
-// what looks unusual, what is connected), each with real numbers from the
-// user's file, so people can see which question fits what they care about.
+// Update: tap-to-ask questions are grouped under plain headings (what drives
+// your numbers, what looks unusual, what is linked), so people can see which
+// question fits what they care about.
 "use client";
 
 import { useEffect, useState } from "react";
@@ -13,9 +13,9 @@ import type {
 } from "@/core/investigation-engine/suggestQuestions";
 
 const GROUPS: { id: QuestionGroup; title: string }[] = [
-  { id: "changed", title: "What changed" },
+  { id: "changed", title: "What drives your numbers" },
   { id: "unusual", title: "What looks unusual" },
-  { id: "connected", title: "What is connected" },
+  { id: "connected", title: "What is linked" },
 ];
 
 export default function InvestigateQuestionPage({
@@ -95,7 +95,7 @@ export default function InvestigateQuestionPage({
             </p>
             {items.map((s) => (
               <button
-                key={s.question}
+                key={s.question + s.label}
                 onClick={() => runInvestigation(s.question)}
                 disabled={loading}
                 style={{
