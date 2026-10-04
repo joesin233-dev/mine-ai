@@ -1,6 +1,8 @@
-// MINE AI V0.1 — Diagnostic Engine: shared statistics helpers
-// Small pure functions reused by the contributor scorer. Kept separate so
-// the scoring logic itself stays readable.
+// Tarpec AI — Diagnostic Engine: shared statistics helpers
+// Small pure functions reused by the contributor scorer. Missing values
+// (NaN) are skipped, never treated as numbers.
+
+const isNum = (v: number): boolean => Number.isFinite(v);
 
 export function average(values: number[]): number {
   return values.reduce((sum, v) => sum + v, 0) / values.length;
@@ -8,18 +10,26 @@ export function average(values: number[]): number {
 
 export function pearsonCorrelation(x: number[], y: number[]): number | null {
   const n = Math.min(x.length, y.length);
-  if (n === 0) return null;
+  const xs: number[] = [];
+  const ys: number[] = [];
+  for (let i = 0; i < n; i++) {
+    if (isNum(x[i]) && isNum(y[i])) {
+      xs.push(x[i]);
+      ys.push(y[i]);
+    }
+  }
+  if (xs.length < 2) return null;
 
-  const xMean = average(x.slice(0, n));
-  const yMean = average(y.slice(0, n));
+  const xMean = average(xs);
+  const yMean = average(ys);
 
   let numerator = 0;
   let sumXSq = 0;
   let sumYSq = 0;
 
-  for (let i = 0; i < n; i++) {
-    const dx = x[i] - xMean;
-    const dy = y[i] - yMean;
+  for (let i = 0; i < xs.length; i++) {
+    const dx = xs[i] - xMean;
+    const dy = ys[i] - yMean;
     numerator += dx * dy;
     sumXSq += dx * dx;
     sumYSq += dy * dy;
@@ -45,7 +55,7 @@ export function directionalConsistency(x: number[], y: number[]): number {
   for (let i = 1; i < n; i++) {
     const dx = x[i] - x[i - 1];
     const dy = y[i] - y[i - 1];
-    if (dx === 0 || dy === 0) continue;
+    if (!isNum(dx) || !isNum(dy) || dx === 0 || dy === 0) continue;
     total++;
     if (Math.sign(dx) === Math.sign(dy)) agree++;
   }
@@ -56,10 +66,7 @@ export function directionalConsistency(x: number[], y: number[]): number {
 
 /**
  * How reliably x and y move together row to row, in EITHER direction.
- * A column that always moves opposite to the target is just as consistent
- * as one that always moves with it, so this returns the larger of
- * "same direction" and "opposite direction". 1 = perfectly consistent,
- * 0.5 = no pattern.
+ * 1 = always moves together (or always opposite), 0.5 = no pattern.
  */
 export function signAwareConsistency(x: number[], y: number[]): number {
   const n = Math.min(x.length, y.length);
@@ -71,7 +78,7 @@ export function signAwareConsistency(x: number[], y: number[]): number {
   for (let i = 1; i < n; i++) {
     const dx = x[i] - x[i - 1];
     const dy = y[i] - y[i - 1];
-    if (dx === 0 || dy === 0) continue;
+    if (!isNum(dx) || !isNum(dy) || dx === 0 || dy === 0) continue;
     total++;
     if (Math.sign(dx) === Math.sign(dy)) same++;
   }
