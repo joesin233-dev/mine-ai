@@ -3,9 +3,13 @@
 // real calculations. Per the locked causation rule, this NEVER concludes
 // that a contributor caused the finding — only how strongly it is
 // associated with it, in plain, careful language.
+//
+// Update: consistency is now direction-aware (a column that reliably moves
+// opposite to the target is consistent, not contradicting), and the
+// temporal check pairs candidate and target values row by row.
 
 import type { ColumnProfile, Contributor } from "@/models/types";
-import { average, pearsonCorrelation, directionalConsistency } from "./statsHelpers";
+import { average, pearsonCorrelation, signAwareConsistency } from "./statsHelpers";
 
 export interface ScoringInput {
   candidate: ColumnProfile;
@@ -41,27 +45,30 @@ export function scoreContributor(input: ScoringInput): Contributor {
   }
 
   // Correlation: overall linear relationship with the target across all rows.
+  // The size of the relationship counts, whichever direction it goes.
   const correlation = pearsonCorrelation(candidateValues, targetValues) ?? 0;
   const correlationScore = Math.abs(correlation);
 
-  // Temporal alignment: does the candidate's change happen in the SAME
-  // period as the target's change (approximated here by correlation
-  // restricted to the comparison-period rows only).
-  const targetComparisonVals = comparisonIndices
-    .map((i) => targetValues[i])
-    .filter((v) => !Number.isNaN(v));
+  // Temporal alignment: correlation inside the comparison period only,
+  // using rows where BOTH the candidate and the target have a value.
+  const pairs = comparisonIndices
+    .map((i) => [candidateValues[i], targetValues[i]] as const)
+    .filter(([c, t]) => !Number.isNaN(c) && !Number.isNaN(t));
   const temporalCorrelation =
-    comparisonVals.length >= 2 && targetComparisonVals.length >= 2
-      ? pearsonCorrelation(comparisonVals, targetComparisonVals) ?? 0
+    pairs.length >= 2
+      ? pearsonCorrelation(
+          pairs.map((p) => p[0]),
+          pairs.map((p) => p[1])
+        ) ?? 0
       : 0;
   const temporalAlignmentScore = Math.abs(temporalCorrelation);
 
-  // Consistency: how often the candidate and target move the same
-  // direction row-to-row, across the whole series.
-  const consistencyScore = directionalConsistency(candidateValues, targetValues);
+  // Consistency: how reliably the candidate and target move together
+  // row to row, in either direction.
+  const consistencyScore = signAwareConsistency(candidateValues, targetValues);
 
-  // Contradicting evidence: rows where the candidate moved but the target
-  // didn't move the same way — the inverse of consistency.
+  // Contradicting evidence: the part of the row-to-row movement that does
+  // not follow the main pattern.
   const contradictingEvidenceScore = 1 - consistencyScore;
 
   const overallScore =
