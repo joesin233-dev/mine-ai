@@ -5,7 +5,8 @@
 // variable selector, so a button that wouldn't work is never shown.
 //
 // The user SEES a natural question. The engine receives a safe
-// column-only question.
+// column-only question. The column being explained is always named first,
+// because the engine explains the first column it finds.
 
 import type { ColumnProfile, Finding } from "@/models/types";
 import { parseQuestion } from "./questionParser";
@@ -129,12 +130,12 @@ export function suggestQuestions(
     add("changed", `What affects ${plain(target.name)} the most?`, [target.name], HINT_DRIVERS);
   }
 
-  // 2) Does price affect quantity?
+  // 2) Does price affect quantity? (quantity is the column being explained)
   if (price && quantity && price.name !== quantity.name) {
     add(
       "connected",
       `Does ${plain(price.name)} affect ${plain(quantity.name)}?`,
-      [price.name, quantity.name],
+      [quantity.name, price.name],
       HINT_LINK
     );
   }
@@ -151,14 +152,14 @@ export function suggestQuestions(
     );
   }
 
-  // 4) Are the costs linked to the main result?
+  // 4) Are the costs linked to the main result? (the main result is explained)
   if (target) {
     for (const c of costs) {
       if (c.name === target.name) continue;
       add(
         "connected",
         `Is ${plain(c.name)} linked to ${plain(target.name)}?`,
-        [c.name, target.name],
+        [target.name, c.name],
         HINT_LINK
       );
     }
