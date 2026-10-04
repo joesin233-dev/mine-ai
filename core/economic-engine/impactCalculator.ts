@@ -1,8 +1,11 @@
-// MINE AI V0.1 — Economic Engine: Impact Calculator
+// Tarpec AI — Economic Engine: Impact Calculator
 // Stage 8: the full pipeline — a Finding + user inputs in, an EconomicResult
 // out. Derives the actual quantity change from the real data (same
 // baseline/comparison split used elsewhere), then applies the formula
 // engine only if all required inputs are present.
+//
+// Update: no default currency (the file's own symbol is passed in), and
+// empty cells or text are skipped instead of being counted as 0.
 
 import type { Dataset, Finding, EconomicResult } from "@/models/types";
 import { checkRequiredInputs } from "./inputManager";
@@ -16,14 +19,21 @@ export interface CalculateEconomicInput {
   currency?: string;
 }
 
+/** Empty cells and text become NaN (not 0), so they are skipped. */
+function toNumber(value: string | number | null | undefined): number {
+  if (typeof value === "number") return value;
+  if (typeof value === "string" && value.trim() !== "") return Number(value);
+  return NaN;
+}
+
 function deriveQuantityChange(
   finding: Finding,
   rows: Record<string, string | number | null>[]
 ) {
   const variableName = finding.variablesInvolved[0];
   const values = rows
-    .map((row) => Number(row[variableName]))
-    .filter((v) => !Number.isNaN(v));
+    .map((row) => toNumber(row[variableName]))
+    .filter((v) => Number.isFinite(v));
 
   const mid = Math.floor(values.length / 2);
   const baseline = values.slice(0, mid);
@@ -48,7 +58,8 @@ function average(values: number[]): number {
 }
 
 export function calculateEconomicImpact(input: CalculateEconomicInput): EconomicResult {
-  const { finding, rows, providedInputs, currency = "USD" } = input;
+  const { finding, rows, providedInputs } = input;
+  const currency = (input.currency ?? "").trim();
 
   const inputCheck = checkRequiredInputs(providedInputs);
 
