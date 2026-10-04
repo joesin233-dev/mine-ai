@@ -1,15 +1,17 @@
 // Tarpec AI — Economic Engine: Impact Calculator
 // Stage 8: the full pipeline — a Finding + user inputs in, an EconomicResult
-// out. Derives the actual quantity change from the real data (same
-// baseline/comparison split used elsewhere), then applies the formula
-// engine only if all required inputs are present.
-//
-// Update: no default currency (the file's own symbol is passed in), and
-// empty cells or text are skipped instead of being counted as 0.
+// out. Derives the actual change from the real data (same baseline/
+// comparison split used elsewhere), then:
+//   - if the column is already MONEY (its name carries a currency tag such
+//     as "(NGN)"), the change is the impact and no value per unit is asked;
+//   - otherwise it is a quantity, and the formula engine multiplies by the
+//     value per unit, only if that input is present.
+// Empty cells and text are skipped instead of being counted as 0.
 
 import type { Dataset, Finding, EconomicResult } from "@/models/types";
 import { checkRequiredInputs } from "./inputManager";
-import { calculateImpact } from "./formulaEngine";
+import { calculateImpact, calculateMoneyImpact } from "./formulaEngine";
+import { currencyTagInName } from "../data-engine/currencyTag";
 
 export interface CalculateEconomicInput {
   finding: Finding;
@@ -26,7 +28,7 @@ function toNumber(value: string | number | null | undefined): number {
   return NaN;
 }
 
-function deriveQuantityChange(
+function deriveChange(
   finding: Finding,
   rows: Record<string, string | number | null>[]
 ) {
@@ -59,8 +61,42 @@ function average(values: number[]): number {
 
 export function calculateEconomicImpact(input: CalculateEconomicInput): EconomicResult {
   const { finding, rows, providedInputs } = input;
-  const currency = (input.currency ?? "").trim();
+  const fileCurrency = (input.currency ?? "").trim();
+  const variableName = finding.variablesInvolved[0];
+  const columnCurrency = currencyTagInName(variableName);
+  const isMoneyColumn = columnCurrency !== undefined;
+  // A money column's own tag wins over the file-wide currency.
+  const currency = columnCurrency ?? fileCurrency;
 
+  const notEnoughData = (): EconomicResult => ({
+    findingId: finding.id,
+    inputs: providedInputs,
+    formula: "Not enough data was available to calculate a change.",
+    result: null,
+    currency,
+    period: finding.period,
+    valueType: "estimated",
+    missingInputs: [],
+  });
+
+  // Money column: the change itself is the impact.
+  if (isMoneyColumn) {
+    const change = deriveChange(finding, rows);
+    if (!change) return notEnoughData();
+
+    const { formula, result } = calculateMoneyImpact(change);
+    return {
+      findingId: finding.id,
+      inputs: {},
+      formula,
+      result,
+      currency,
+      period: finding.period,
+      valueType: "calculated",
+    };
+  }
+
+  // Quantity column: needs the value per unit from the user.
   const inputCheck = checkRequiredInputs(providedInputs);
 
   if (!inputCheck.isComplete) {
@@ -76,20 +112,8 @@ export function calculateEconomicImpact(input: CalculateEconomicInput): Economic
     };
   }
 
-  const quantityChange = deriveQuantityChange(finding, rows);
-
-  if (!quantityChange) {
-    return {
-      findingId: finding.id,
-      inputs: providedInputs,
-      formula: "Not enough data was available to calculate a quantity change.",
-      result: null,
-      currency,
-      period: finding.period,
-      valueType: "estimated",
-      missingInputs: [],
-    };
-  }
+  const quantityChange = deriveChange(finding, rows);
+  if (!quantityChange) return notEnoughData();
 
   const { formula, result } = calculateImpact(quantityChange, providedInputs.valuePerUnit);
 
