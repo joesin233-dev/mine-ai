@@ -1,12 +1,12 @@
-// MINE AI V0.1 — Evidence Engine: Confidence Calculator
+// Tarpec AI — Evidence Engine: Confidence Calculator
 // Stage 7: computes a transparent confidence level from the actual
 // evidence gathered, and explains WHY that level was chosen. Confidence is
 // never randomly assigned — every reason listed here is deterministic and
 // re-derivable from the same inputs.
 //
-// Update: "high" now needs at least 20 rows (matching the small-sample
-// warning in the limitations) and a strong contributor whose row-to-row
-// consistency is at least 0.6.
+// Update: "high" needs at least 20 rows (matching the small-sample warning
+// in the limitations) and a strong contributor whose row-to-row
+// consistency is at least 0.7.
 
 import type { Contributor } from "@/models/types";
 
@@ -17,7 +17,7 @@ export interface ConfidenceResult {
 
 const MIN_ROWS_HIGH = 20;
 const MIN_ROWS_MEDIUM = 6;
-const MIN_CONSISTENCY_HIGH = 0.6;
+const MIN_CONSISTENCY_HIGH = 0.7;
 
 export function calculateConfidence(
   contributors: Contributor[],
