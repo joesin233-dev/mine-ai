@@ -7,14 +7,13 @@
 // It looks, in this order, at:
 //   1) symbols inside the cells (₦ $ £ € ₹ K)
 //   2) Excel cell number formats (for example "₦"#,##0)
-//   3) tags in column names (for example "Total Sales Value (NGN)", "cost_usd"),
-//      accepted only if the system's own ISO currency standard confirms the
-//      tag is a currency. Tarpec stores NO currency list of its own.
+//   3) currency tags in column names (see currencyTag.ts)
 // It never converts currencies and never guesses: if the file says
 // nothing, currencySymbol is left undefined.
 
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
+import { currencyTagInName } from "./currencyTag";
 
 export type RawRow = Record<string, string | number | null>;
 
@@ -28,22 +27,6 @@ export interface ParseResult {
 const CURRENCY_SYMBOLS = /[₦$£€₹K]/gi;
 
 type Tally = Record<string, number>;
-
-// The system's own list of ISO currency codes (not stored in Tarpec).
-let systemCurrencies: Set<string> | null = null;
-function isCurrencyCode(code: string): boolean {
-  if (!systemCurrencies) {
-    try {
-      const supported = (
-        Intl as unknown as { supportedValuesOf?: (key: string) => string[] }
-      ).supportedValuesOf;
-      systemCurrencies = new Set(supported ? supported("currency") : []);
-    } catch {
-      systemCurrencies = new Set();
-    }
-  }
-  return systemCurrencies.has(code.toUpperCase());
-}
 
 function addToTally(tally: Tally, symbol: string): void {
   const key = symbol.toUpperCase() === "K" ? "K" : symbol;
@@ -62,17 +45,12 @@ function mostCommon(tally: Tally): string | undefined {
   return best;
 }
 
-/**
- * Reads a currency tag from column names such as "Total Sales Value (NGN)"
- * or "cost_usd". A tag counts only if the system confirms it is a currency.
- */
+/** Reads the most common currency tag found in the column names. */
 function currencyFromHeaders(headers: string[]): string | undefined {
   const tally: Tally = {};
   for (const header of headers) {
-    const parts = header.split(/[^A-Za-z]+/).filter((p) => p.length === 3);
-    for (const part of parts) {
-      if (isCurrencyCode(part)) addToTally(tally, part.toUpperCase());
-    }
+    const tag = currencyTagInName(header);
+    if (tag) addToTally(tally, tag);
   }
   return mostCommon(tally);
 }
